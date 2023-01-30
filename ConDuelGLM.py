@@ -76,6 +76,8 @@ def get_constant_alpha(theta_star, M, lamb, dim, delta, kappa):
 """
 
 # select a pair of arms from X_pool
+# the first arm with its ucb estimate for beating other arms > 0.5
+# the second arm with max ucb estimate for beating the first arm
 def choose_arm_pair(X_pool, theta, alpha, M):
 
     C_t = []
@@ -85,8 +87,8 @@ def choose_arm_pair(X_pool, theta, alpha, M):
             C_t.append(arm)
 
     arm_1 = C_t[random.randint(0, len(C_t) - 1)]
-    uncertainty = [weighted_norm(arm - arm_1, LA.inv(M)) for arm in C_t]
-    arm_2 = C_t[np.argmax(uncertainty)]
+    prob_ucb = [(np.dot(arm - arm_1, theta))+ alpha*weighted_norm(arm - arm_1, LA.inv(M)) for arm in C_t]
+    arm_2 = C_t[np.argmax(prob_ucb)]
     diff_arm = arm_1 - arm_2
     return arm_1, arm_2, diff_arm
 
@@ -106,11 +108,14 @@ def ConGLM(arms, suparms, conf, theta_star, pool_index_list, buget_func, horizon
     x, y, M = init(theta_star, arms, lamb, init_length, kappa)
     B = compute_B(suparms, theta_star)
     regret_s = []  # strong regret
-    # regret_w = [] # weak regret
+    regret_w = [] # weak regret
     regret = []  # mean regret
     reward = []
     theta_record = []
-
+    rank_winner_record = [] # record the rank of a winner from a selected pair
+    # rank 0 represents the selected winner is also the optimal arm at round t#
+    # rank 1 represents the 2nd optimal arm #
+    
     for i in range(horizon):
         # conversation part #
         if buget_func(i + 1) - buget_func(i) > 0:
@@ -124,14 +129,15 @@ def ConGLM(arms, suparms, conf, theta_star, pool_index_list, buget_func, horizon
                 y.append(int(np.random.choice([0, 1], p=p.ravel())))
 
         theta = solve_MLE(x, y, 1 / lamb)  # theta: MLE estimate
-        theta_record.append(theta)
+        theta_record.append(theta) # theta_record to check parameter convergence
         """
         if LA.norm(theta)> param_norm_ub:
             theta = projection(arm, theta, M, lamb, param_norm_ub, dim)
         """
         X_pool = arms[pool_index_list[i]]
-        mus = sigmoid(X_pool @ theta_star)
-        mu_1 = np.max(mus)
+        mus = np.round((X_pool @ theta_star),4)
+        mus_hat = np.round((X_pool @ theta),4)
+        mu_1 = np.max(mus) # utility for the best arm at round t
 
         # alpha = get_constant_alpha(theta_star, M, lamb, dim, sigma, kappa)
         a1, a2, d_i = choose_arm_pair(X_pool, theta, alpha, M)
@@ -141,18 +147,23 @@ def ConGLM(arms, suparms, conf, theta_star, pool_index_list, buget_func, horizon
         x.append(d_i.reshape(dim))
         y.append(int(np.random.choice([0, 1], p=p.ravel())))
 
-        reward_1 = sigmoid(np.dot(a1, theta_star))
-        reward_2 = sigmoid(np.dot(a2, theta_star))
+        reward_1 = np.round((np.dot(a1, theta_star)), 4)
+        reward_2 = np.round((np.dot(a2, theta_star)), 4)
+        rank_1 = mus_seq.index(reward_1)
+        rank_2 = mus_seq.index(reward_2)
+        rank_winner_record.append(min(rank_1, rank_2))
+        
         reward.append(0.5 * (reward_1 + reward_2))
         regret_s.append(max(mu_1 - reward_1, mu_1 - reward_2))
-        # regret_w.append(min(mu_1 - reward_1, mu_1 - reward_2))
+        regret_w.append(min(mu_1 - reward_1, mu_1 - reward_2))
         regret.append(mu_1 - 0.5 * (reward_1 + reward_2))
 
     cum_reward = [sum(reward[0:i]) for i in range(len(reward))]
     cum_regret_s = [sum(regret_s[0:i]) for i in range(len(regret_s))]
-    # cum_regret_w = [sum(regret_w[0:i]) for i in range(len(regret_w))]
+    cum_regret_w = [sum(regret_w[0:i]) for i in range(len(regret_w))]
     cum_regret = [sum(regret[0:i]) for i in range(len(regret))]
 
-    info_all = {"reward": cum_reward, "regret": cum_regret, "regret_strong": cum_regret_s, "theta": theta_record}
+    info_all = {"reward": cum_reward, "regret": cum_regret, "regret_strong": cum_regret_s,
+                "regret_weak": cum_regret_w,"theta": theta_record,"rank_winner": rank_winner_record}
 
     return info_all
