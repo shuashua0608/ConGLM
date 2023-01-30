@@ -6,6 +6,7 @@ from algo.conf import conglm_para
 from algo.conf import maxinp_para
 import matplotlib.pyplot as plt
 from basic_func import *
+from sum_info import sum_conglm
 import math
 ###############################################################################################
 pth = "D:/pycharmProject/Con_GLM_compare/data/"
@@ -32,6 +33,9 @@ info_conglm = ConGLM(arms, suparms, conglm_para, theta_star, pool_index_list, bt
 
 regret_maxinp = info_maxinp["regret"]
 regret_conglm = info_conglm["regret"]
+
+sum_info_maxinp = sum_conglm(info_maxinp)
+sum_info_conglm= sum_conglm(info_conglm)
 
 plt.plot(regret_maxinp)
 plt.plot(regret_conglm)
