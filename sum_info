@@ -1,0 +1,10 @@
+def sum_conglm(info):
+    
+    regret = info['regret']
+    regret_weak = info['regret_weak']
+    theta = info['theta']
+    rank_win = info['rank_win']
+    print("winner being best arm:",rank_win.count(0))
+    print("winner being 2nd best arm:",rank_win.count(1))
+
+    return regret, regret_weak, rank_win,theta
