@@ -39,9 +39,11 @@ def MaxInp(arm, conf, theta_star, pool_index_list, horizon):
     x, y, M = init(theta_star, arm, lamb, init_length, kappa)
 
     regret_s = []  # strong regret
+    regret_w = [] # weak regret
     regret = []  # mean regret
     reward = []
     theta_record = []
+    rank_winner_record = []
 
     for i in range(horizon):
         # conversation part #
@@ -50,7 +52,8 @@ def MaxInp(arm, conf, theta_star, pool_index_list, horizon):
         theta_record.append(theta)
 
         X_pool = arm[pool_index_list[i]]
-        mus = sigmoid(X_pool @ theta_star)
+        mus = np.round((X_pool @ theta_star),4)
+        mus_hat = np.round((X_pool @ theta),4)
         mu_1 = np.max(mus)
 
         a1, a2, d_i = choose_max_pair(X_pool, theta, eta, M)
@@ -60,18 +63,23 @@ def MaxInp(arm, conf, theta_star, pool_index_list, horizon):
         x.append(d_i.reshape(dim))
         y.append(int(np.random.choice([0, 1], p=p.ravel())))
 
-        reward_1 = sigmoid(np.dot(a1, theta_star))
-        reward_2 = sigmoid(np.dot(a2, theta_star))
+        reward_1 = np.round((np.dot(a1, theta_star)), 4)
+        reward_2 = np.round((np.dot(a2, theta_star)), 4)
+        rank_1 = mus_seq.index(reward_1)
+        rank_2 = mus_seq.index(reward_2)
+        rank_winner_record.append(min(rank_1, rank_2))
+        
         reward.append(0.5 * (reward_1 + reward_2))
-
         regret_s.append(max(mu_1 - reward_1, mu_1 - reward_2))
+        regret_w.append(min(mu_1 - reward_1, mu_1 - reward_2))
         regret.append(mu_1 - 0.5 * (reward_1 + reward_2))
 
     cum_reward = [sum(reward[0:i]) for i in range(len(reward))]
     cum_regret_s = [sum(regret_s[0:i]) for i in range(len(regret_s))]
-    #cum_regret_w = [sum(regret_w[0:i]) for i in range(len(regret_w))]
+    cum_regret_w = [sum(regret_w[0:i]) for i in range(len(regret_w))]
     cum_regret = [sum(regret[0:i]) for i in range(len(regret))]
 
-    info_all = {"reward": cum_reward, "regret": cum_regret, "regret_strong": cum_regret_s, "theta": theta_record}
+    info_all = {"reward": cum_reward, "regret": cum_regret, "regret_strong": cum_regret_s, 
+                "regret_weak": cum_regret_w, "rank_win": rank_winner_record, "theta": theta_record}
 
     return info_all
